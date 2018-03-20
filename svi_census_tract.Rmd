@@ -26,9 +26,9 @@ Be advised that it will take 20-30 minutes to compile these data.  The 16 metric
 
 ## Dependencies
 
-A file called *SVI_censustract_functions.R* can be found in the GitHub Repository. This contains all the functions written to pull Census Data (ACS 5-year estimates) for individual metrics.  It also contains a wrapper function which calls all the individual data series and binds the results together in a complete 'Social Vulnerability Indicators' R data frame.
+A file called [SVI_censustract_functions.R](https://github.com/aaronmams/svi-tools/tree/master/R) can be found in the GitHub Repository. This contains all the functions written to pull Census Data (ACS 5-year estimates) for individual metrics.  It also contains a wrapper function which calls all the individual data series and binds the results together in a complete 'Social Vulnerability Indicators' R data frame.
 
-Two other scripts, *SVI_censustracts_data.R* and *SVI_censustract_analysis.R* illustrate some ways to use these data functions to explore social vulnerability metrics at the census tract level.
+Two other scripts, [SVI_censustracts_data.R](https://github.com/aaronmams/svi-tools/blob/master/R/SVI_censustracts_data.R) and [SVI_censustract_analysis.R](https://github.com/aaronmams/svi-tools/blob/master/R/SVI_censustract_analysis.R) illustrate some ways to use these data functions to explore social vulnerability metrics at the census tract level.
 
 
 ## Background
@@ -90,7 +90,7 @@ return(call)
 }
 ```
 
-### Percent of population less than 65 with a disability
+### Population less than 65 with a disability
 
 As a first example, let's use *Percent of the population age 65 or less with a disability*.  The primary series of importance here are various 'B18101_' series.  These are the series that contain estimates of population counts with a disability in various age brackets.
 
@@ -147,11 +147,12 @@ return(disable)
 
 #---------------------------------------------------------------------------------------------------
 # Next, call the function for CA/OR/WA and bind the results together
-#disable <- rbind(disability.fn(state='06',year=2015,key=key),
+disable <- disability.fn(state='06',year=2015,key=key)
+ #disable <- rbind(disability.fn(state='06',year=2015,key=key),
 #                 disability.fn(state='41',year=2015,key=key),
 #                 disability.fn(state='53',year=2015,key=key))
 
-#head(disable)
+head(disable)
 
 ```
 
@@ -169,8 +170,8 @@ below_poverty.fn <- function(state,year,key){
 series1 <- 'B17001_001E'
 series2 <- 'B17001_002E'
 
-  call1 <- api_call.fn(state='06',year=2015,key=key,series=series1)
-  call2 <- api_call.fn(state='06',year=2015,key=key,series=series2)
+  call1 <- api_call.fn(state=state,year=2015,key=key,series=series1)
+  call2 <- api_call.fn(state=state,year=2015,key=key,series=series2)
   
 # population for whom poverty status is determined
 pov.pop <- fromJSON(call1)
@@ -198,7 +199,7 @@ return(pov)
 ```
 
 
-```{r warning=FALSE, message=FALSE,eval=FALSE}
+```{r warning=FALSE, message=FALSE}
 # call the function to get poverty
 
 poverty <- tbl_df(rbind(below_poverty.fn(year=2015,state='06',key=key),
@@ -215,7 +216,7 @@ print.data.frame(poverty %>% select(name,pov.pct) %>% filter(pov.pct<=upper.cut)
 #show the poorest decile of the distribution
 lower.cut <- quantile(poverty$pov.pct,probs=c(0.9),na.rm=T)
 print.data.frame(poverty %>% select(name,pov.pct) %>% filter(pov.pct>=lower.cut) %>%
-             arrange(pov.pct) %>% filter(row_number() <= 20))
+             arrange(-pov.pct) %>% filter(row_number() <= 20))
 
 
 ```
@@ -229,7 +230,7 @@ I create a library of other functions similar to the function above for
 * Per capital income
 * Health Insurance - percent of population without health insurance coverage
 
-... and lot of other stuff
+... and a lot of other stuff
 
 ## SVI Pipeline
 
@@ -237,8 +238,8 @@ The workflow to replicate a Social Vulnerability Index for the West Coast looks 
 
 ### Step 1: Source the function library and provide API Key
 
-```{r,eval=FALSE}
-source('R:/PacFIN 1981_2014/fishing community database/fishingcommunity_shinyapp/community_explorer/SVI_censustract_functions.R')
+```{r}
+source('R/SVI_censustract_functions.R')
 key <- 'yourAPIkeyhere'
 
 ```
@@ -250,7 +251,7 @@ I have a function for each metric in the index so one could call each of those f
 * year
 * key
 
-This function sequentially calls all the individual data gathering functions and binds them together in a single data frame:
+This function sequentially calls all the individual data gathering functions and binds them together in a single data frame.  It looks like this:
 
 
 ```{r, eval=FALSE}
@@ -592,8 +593,7 @@ svi.df <- svi_data_censustract.fn(yr=2015,key=key)
 ```
 
 ```{r}
-getwd()
-svi.df <- readRDS('/Users/aaronmamula/Documents/R projects/spatial/R-spatial/data/svi_censustract_2015.RDA')
+svi.df <- readRDS('data/svi_censustract_2015.RDA')
 ```
 
 ```{r}
@@ -703,6 +703,12 @@ return(call)
 
 As a quick example, we'll grab the population for which poverty status is determined at the county level for the entire U.S.
 
+```{r, echo=FALSE}
+key <- 'f5a32f694a14b28acf7301f4972eaab8551eafda'
+
+```
+
+
 ```{r}
     call <- api_call.fn(year=2015,key=key,series='B17001_001E')
 
@@ -713,6 +719,7 @@ As a quick example, we'll grab the population for which poverty status is determ
     })))
 
     head(df %>% filter(row_number() >1))
+
 ```
 
 Currently bringing county level estimates in via API calls would require some tweaking to the functions I wrote...but these tweaks would be pretty minor.  
