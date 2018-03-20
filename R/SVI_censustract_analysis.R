@@ -94,11 +94,19 @@ plotData <- left_join(tract,ca.ins)
 
 
 #now try just a zoom on some North Coast areas
+# a few reference points 
+point.df <- data.frame(name=c('Crescent City','Fort Bragg','Eureka'),
+                       lat=c(41.7558,39.4457,40.8021),
+                       long=c(-124.2026,-123.8053,-124.1637))
+
 ggplot() +
   geom_polygon(data = subset(plotData,lat>=38 & long<=-121), aes(x = long, y = lat, group = group,
                                                                  fill = uninsured)) +
   geom_polygon(data = subset(county,lat>=38 & long<=-121), aes(x = long, y = lat, group = group),
                fill = NA, color = "black", size = 0.25) +
+  geom_point(data=point.df,aes(x=long,y=lat),shape=18,size=3) + 
+  geom_text(data=point.df,
+             aes(x=long,y=lat,label=name),hjust=-0.1) + 
   coord_map() +
   scale_fill_distiller(palette = "Spectral", labels = percent,
                        breaks = pretty_breaks(n = 10)) +

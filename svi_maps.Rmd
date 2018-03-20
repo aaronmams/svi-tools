@@ -15,6 +15,8 @@ This short document is meant to provide a minimal reproduceable example of how t
 
 This Vignette assumes that you have already used the functions from [svi_censustract_functions.R](https://github.com/aaronmams/svi-tools/blob/master/R/SVI_censustract_functions.R) to create the Census Tract level data frame with the 16 social vulnerability indicators.
 
+A quick word of caution: there is some latency time involved in converting SpatialPolygonsDataFrames (R's method for shapefiles) to data frames in R.  If you're doing a lot of these conversions for a mapping exercise expect to wait a 20-30 seconds per operation.
+
 ## Dependencies
 
 ### R packages
@@ -35,6 +37,8 @@ The mapping exercises here rely on a couple of shapefiles that I downloaded from
 
 1. "gz_2010_06_140_00_500k" - the cartographic boundaries for California Census Tracts, and
 2. "gz_2010_06_060_00_500k" - cartographic boundaries for California Counties.
+
+Both of these files are included in the [GitHub repository here](https://github.com/aaronmams/svi-tools/tree/master/shapefiles).
 
 ## Exercise 1: Create a 'heatmap' of poverty by Census Tract
 
@@ -85,3 +89,37 @@ ggplot() +
 
 ## Exercise 2: heatmap of uninsured rates for CA North Coast
 
+Here I use the same base code as above but subset the data in order to zoom in on California's North Coast.  
+
+```{r}
+ca.ins <- tbl_df(svi.df) %>%
+  select(name,state,county,tract,pct_no_healthins) %>%
+  filter(state=='06') %>%
+  mutate(id=paste('1400000US',state,county,tract,sep="")) %>%
+  mutate(uninsured=pct_no_healthins)
+
+
+plotData <- left_join(tract,ca.ins)
+
+
+#now try just a zoom on some North Coast areas
+# a few reference points 
+point.df <- data.frame(name=c('Crescent City','Fort Bragg','Eureka'),
+                       lat=c(41.7558,39.4457,40.8021),
+                       long=c(-124.2026,-123.8053,-124.1637))
+
+ggplot() +
+  geom_polygon(data = subset(plotData,lat>=38 & long<=-121), 
+               aes(x = long, y = lat, group = group,
+                  fill = uninsured)) +
+  geom_polygon(data = subset(county,lat>=38 & long<=-121), 
+               aes(x = long, y = lat, group = group),
+               fill = NA, color = "black", size = 0.25) +
+  geom_point(data=point.df,aes(x=long,y=lat),shape=18,size=3) + 
+  geom_text(data=point.df,
+             aes(x=long,y=lat,label=name),hjust=-0.1) + 
+  coord_map() +
+  scale_fill_distiller(palette = "Spectral", labels = percent,
+                       breaks = pretty_breaks(n = 10)) +
+  guides(fill = guide_legend(reverse = TRUE)) + theme_bw()
+```
