@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 This short document is meant to provide a minimal reproduceable example of how to create some basic chloropleath maps using Census Data.
 
-This Vignette assumes that you have already used the functions from [svi_censustract_functions.R]() to create the Census Tract level data frame with the 16 social vulnerability indicators.
+This Vignette assumes that you have already used the functions from [svi_censustract_functions.R](https://github.com/aaronmams/svi-tools/blob/master/R/SVI_censustract_functions.R) to create the Census Tract level data frame with the 16 social vulnerability indicators.
 
 ## Dependencies
 
@@ -38,14 +38,22 @@ The mapping exercises here rely on a couple of shapefiles that I downloaded from
 
 ## Exercise 1: Create a 'heatmap' of poverty by Census Tract
 
-The first step here is to set up the social vulnerability indicator data.  As explained in [this Vignette]() I don't really want to wait 30 minutes for the data to compile from API pings so I'm just going to load a version of the data that I stored:
+The first step here is to set up the social vulnerability indicator data.  As explained in [this Vignette](https://github.com/aaronmams/svi-tools/blob/master/svi_census_tract.Rmd) I don't really want to wait 30 minutes for the data to compile from API pings so I'm just going to load a version of the data that I stored:
 
 ```{r}
-svi.df <- readRDS('/Users/aaronmamula/Documents/R projects/spatial/R-spatial/data/svi_censustract_2015.RDA')
+svi.df <- readRDS('data/svi_censustract_2015.RDA')
 ```
 
-```{r}
-tract <- readOGR(dsn = "data/gz_2010_06_140_00_500k", 
+```{r warning=FALSE, message=FALSE}
+library(rgdal)
+library(ggplot2)
+library(ggmap)
+library(scales)
+library(maptools)
+library(rgeos)
+library(dplyr)
+
+tract <- readOGR(dsn = "shapefiles/gz_2010_06_140_00_500k", 
                  layer = "gz_2010_06_140_00_500k")
 tract <- fortify(tract, region="GEO_ID")
 
@@ -57,7 +65,7 @@ ca.poverty <- tbl_df(svi.df) %>%
 
 plotData <- left_join(tract,ca.poverty)
 
-county <- readOGR(dsn = "data/gz_2010_06_060_00_500k", 
+county <- readOGR(dsn = "shapefiles/gz_2010_06_060_00_500k", 
                   layer = "gz_2010_06_060_00_500k")
 county <- fortify(county, region="COUNTY")
 

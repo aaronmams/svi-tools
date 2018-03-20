@@ -34,7 +34,7 @@ source('R/SVI_censustracts_data.R')
 
 svi.df <- readRDS('data/svi_censustract_2015.RDA')
 
-tract <- readOGR(dsn = "data/gz_2010_06_140_00_500k", 
+tract <- readOGR(dsn = "shapefiles/gz_2010_06_140_00_500k", 
                  layer = "gz_2010_06_140_00_500k")
 tract <- fortify(tract, region="GEO_ID")
 
@@ -53,7 +53,7 @@ ca.poverty <- tbl_df(svi.df) %>%
 
 plotData <- left_join(tract,ca.poverty)
 
-county <- readOGR(dsn = "data/gz_2010_06_060_00_500k", 
+county <- readOGR(dsn = "shapefiles/gz_2010_06_060_00_500k", 
                   layer = "gz_2010_06_060_00_500k")
 county <- fortify(county, region="COUNTY")
 
