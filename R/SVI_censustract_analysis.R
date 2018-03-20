@@ -81,6 +81,28 @@ ggplot() +
                        breaks = pretty_breaks(n = 10)) +
   guides(fill = guide_legend(reverse = TRUE)) + theme_bw()
 
+#----------------------------------------------------------------
+#----------------------------------------------------------------
+ca.ins <- tbl_df(svi.df) %>%
+  select(name,state,county,tract,pct_no_healthins) %>%
+  filter(state=='06') %>%
+  mutate(id=paste('1400000US',state,county,tract,sep="")) %>%
+  mutate(uninsured=pct_no_healthins)
+
+
+plotData <- left_join(tract,ca.ins)
+
+
+#now try just a zoom on some North Coast areas
+ggplot() +
+  geom_polygon(data = subset(plotData,lat>=38 & long<=-121), aes(x = long, y = lat, group = group,
+                                                                 fill = uninsured)) +
+  geom_polygon(data = subset(county,lat>=38 & long<=-121), aes(x = long, y = lat, group = group),
+               fill = NA, color = "black", size = 0.25) +
+  coord_map() +
+  scale_fill_distiller(palette = "Spectral", labels = percent,
+                       breaks = pretty_breaks(n = 10)) +
+  guides(fill = guide_legend(reverse = TRUE)) + theme_bw()
 
 
 

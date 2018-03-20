@@ -82,3 +82,6 @@ ggplot() +
   guides(fill = guide_legend(reverse = TRUE)) + theme_bw()
 
 ```
+
+## Exercise 2: heatmap of uninsured rates for CA North Coast
+
