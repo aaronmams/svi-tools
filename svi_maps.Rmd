@@ -1,0 +1,76 @@
+---
+title: "Visualizing Census Data for the West Coast"
+author: "aaron mamula"
+date: "3/19/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Abstract
+
+This short document is meant to provide a minimal reproduceable example of how to create some basic chloropleath maps using Census Data.
+
+This Vignette assumes that you have already used the functions from [svi_censustract_functions.R]() to create the Census Tract level data frame with the 16 social vulnerability indicators.
+
+## Dependencies
+
+### R packages
+
+The mapping exercises here rely primarily on methods from the 
+
+* ggmap
+* maptools
+
+packages.  In order to deal with shapefiles you may also require the use of two other packages:
+
+* rgdal
+* rgeos
+
+### Additional data
+
+The mapping exercises here rely on a couple of shapefiles that I downloaded from the [Census Bureau's Tiger Data Mart](https://www.census.gov/geo/maps-data/data/tiger-cart-boundary.html). The two that I will be using here are:
+
+1. "gz_2010_06_140_00_500k" - the cartographic boundaries for California Census Tracts, and
+2. "gz_2010_06_060_00_500k" - cartographic boundaries for California Counties.
+
+## Exercise 1: Create a 'heatmap' of poverty by Census Tract
+
+The first step here is to set up the social vulnerability indicator data.  As explained in [this Vignette]() I don't really want to wait 30 minutes for the data to compile from API pings so I'm just going to load a version of the data that I stored:
+
+```{r}
+svi.df <- readRDS('/Users/aaronmamula/Documents/R projects/spatial/R-spatial/data/svi_censustract_2015.RDA')
+```
+
+```{r}
+tract <- readOGR(dsn = "data/gz_2010_06_140_00_500k", 
+                 layer = "gz_2010_06_140_00_500k")
+tract <- fortify(tract, region="GEO_ID")
+
+
+ca.poverty <- tbl_df(svi.df) %>%
+              select(name,state,county,tract,pov.pct) %>%
+              filter(state=='06') %>%
+              mutate(id=paste('1400000US',state,county,tract,sep=""))
+
+plotData <- left_join(tract,ca.poverty)
+
+county <- readOGR(dsn = "data/gz_2010_06_060_00_500k", 
+                  layer = "gz_2010_06_060_00_500k")
+county <- fortify(county, region="COUNTY")
+
+#now I'm going to use the scales() package to bin the data a little
+# so the contrasts in coverage rates are a little more visible
+ggplot() +
+  geom_polygon(data = plotData, aes(x = long, y = lat, group = group,
+                                    fill = pov.pct)) +
+  geom_polygon(data = county, aes(x = long, y = lat, group = group),
+               fill = NA, color = "black", size = 0.25) +
+  coord_map() +
+  scale_fill_distiller(palette = "Greens", labels = percent,
+                       breaks = pretty_breaks(n = 10)) +
+  guides(fill = guide_legend(reverse = TRUE)) + theme_bw()
+
+```

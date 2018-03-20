@@ -1,0 +1,718 @@
+---
+title: "Social Vulnerability Indicators with R"
+author: "aaron mamula"
+date: "3/11/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Abstract
+
+This document provides a detailed walk through of a batch download of data needed to construct 16 indicators commonly used to create a Social Vulnerability Index.  The data series are loaded into R from the U.S. Census Bureau's API using R libraries to parse Java Script Object Notation (JSON) output. Data are stored at the spatial scales of the Census Tract Boundary.  
+
+This document provides a pretty thorough accounting of how the data pipeline is set up.  The background is good to know but is not, strictly speaking, crucial.  If you cloned this repository from GitHub you should be able to replicate the Social Vulnerability Index I illustrate here using only the following 3 or 4 lines of code:
+
+```{r,eval=FALSE}
+source('R/SVI_censustract_functions.R')
+key <- 'supply_your_API_key'
+svi.df <- svi_data_censustract.fn(yr=2015,key=key)
+
+```
+
+Be advised that it will take 20-30 minutes to compile these data.  The 16 metrics used by the Center for Disease Control in thier Social Vulnerability Index require pulling over 50 individual series.  And since we have to pull each series for every Census Tract in 3 different states it takes a little time.  I recommend compiling the data once, then saving them as a .RDA or .csv file for future use.
+
+## Dependencies
+
+A file called *SVI_censustract_functions.R* can be found in the GitHub Repository. This contains all the functions written to pull Census Data (ACS 5-year estimates) for individual metrics.  It also contains a wrapper function which calls all the individual data series and binds the results together in a complete 'Social Vulnerability Indicators' R data frame.
+
+Two other scripts, *SVI_censustracts_data.R* and *SVI_censustract_analysis.R* illustrate some ways to use these data functions to explore social vulnerability metrics at the census tract level.
+
+
+## Background
+
+*Social Vulnerability refers to the resilience of communities when confronted by external stresses on human health, stresses such as natural or human-caused disasters, or disease outbreaks.* (Center for Disease Control). 
+
+Social Vulnerability Indexes are used by:
+
+* The CDC and almost all state Departments of Health to assess communities most vulnerable to adverse effects of health stressors
+* The EPA as an environmental justice screener
+* NOAA to assess communities vulnerable to effects of climate change
+
+As a first pass at compiling these data I focused on the following representation of a Social vulnerability Index:
+
+[I'm linking to somebody else's visual because I can't get my .png file to embed here]('https://svi.cdc.gov/Documents/Data/2016_SVI_Data/SVI2016Documentation.pdf')
+
+This representation includes 4 themes
+
+* Socio Economic Status
+* Household Composition and Disability
+* Minority Status and Language
+* Housing and Transportation
+
+There are 16 metrics associated with these themes.  Each of the 16 metrics is contructed as an aggregate of upwards of 20 data series.  The purpose of this Markdown document is to establish consistency and transparency regarding the primary data series used to contruct these metrics.
+
+## Outline
+
+I created a library of R functions that accept a year and a geography input.  The library contains one function for each component of the Social Vulnerability Index.  Each function pulls the data series necessary to construct the assigned indicator for the year and geography requested.
+
+The remainder of this document will:
+
+1. provide some illustrative examples of some of these data acquisition functions.  The complete function library can be found in the GitHub repository
+
+2. illustrate the use of a 'wrapper' function which sequentially calls the individual series functions and builds a complete Social Vulnerability data set at the Census Tract level for all Census Tracts in California, Oregon, and Washington.
+
+3. provide some code for basic mapping and visualization of Census Data at the Census Tract level.
+
+## Examples 
+
+The first thing I do is create a function to generate the appropriate API string.  This is necessary because the API strings change each year and they are different depending on whether we are accessing summary tables or subject tables.
+
+```{r}
+api_call.fn <- function(year,state,series,key){
+  
+  
+if(year %in% c(2009,2010)){
+  call <- paste('https://api.census.gov/data/',year,'/acs5?key=',key,'&get=',series,',NAME&for=tract:*&in=state:',state,
+                 sep="")
+}else if(year %in% c(2011,2012,2013,2014)){
+  call <- paste('https://api.census.gov/data/',year,'/acs5?get=NAME,',series,'&for=tract:*&in=state:',state,'&key=',
+                 key,sep="")
+}else{
+  call <- paste('https://api.census.gov/data/',year,'/acs/acs5?get=NAME,',series,'&for=tract:*&in=state:',state,'&key=',
+                 key,sep="")
+  
+}
+
+return(call)  
+}
+```
+
+### Percent of population less than 65 with a disability
+
+As a first example, let's use *Percent of the population age 65 or less with a disability*.  The primary series of importance here are various 'B18101_' series.  These are the series that contain estimates of population counts with a disability in various age brackets.
+
+```{r warning=FALSE,message=FALSE}
+library(dplyr)
+library(RJSONIO)
+library(data.table)
+```
+
+```{r, echo=FALSE}
+key <- 'f5a32f694a14b28acf7301f4972eaab8551eafda'
+
+```
+
+```{r,eval=FALSE}
+key <- yourkeyhere
+```
+
+
+```{r warning=FALSE, message=FALSE}
+#---------------------------------------------------------------------------------------------------
+# Age 65 or less with a disability
+
+disability.fn <- function(state,year,key){
+
+  
+  # get the list of data series
+  series.df <- data.frame(series=c('B18101_004E','B18101_007E','B18101_010E','B18101_013E',
+                                   'B18101_023E','B18101_026E','B18101_029E','B18101_032E'),
+                          label=c('dis_m_5','dis_m_5_17','dis_m_18_34','dis_m_35_64',
+                                  'dis_f_5','dis_f_5_17','dis_f_18_34','dis_f_35_64'))
+  
+  disable <- list()
+  for(i in 1:nrow(series.df)){
+    call <- api_call.fn(year=year,state=state,key=key,series=series.df$series[i])
+    df <- fromJSON(call)
+    df <- data.frame(rbindlist(lapply(df,function(x){
+      x<-unlist(x)
+      return(data.frame(name=x[1],value=x[2],state=x[3],county=x[4],tract=x[5],data_series=series.df$label[i]))
+    })
+    )) %>% filter(row_number() > 1)
+    
+    disable[[i]] <- df    
+  }  
+  
+  disable<-tbl_df(data.frame(rbindlist(disable)))  %>%
+    group_by(name,state,county,tract) %>%
+    summarise(disability=sum(as.numeric(as.character(value)),na.rm=T))
+
+return(disable)
+}
+
+#---------------------------------------------------------------------------------------------------
+
+#---------------------------------------------------------------------------------------------------
+# Next, call the function for CA/OR/WA and bind the results together
+#disable <- rbind(disability.fn(state='06',year=2015,key=key),
+#                 disability.fn(state='41',year=2015,key=key),
+#                 disability.fn(state='53',year=2015,key=key))
+
+#head(disable)
+
+```
+
+
+
+### Percent of households below the poverty line
+
+As a 2nd example, we can pull the series to calculate percent of the population below the poverty line.  We do this by pulling # of households with income below the poverty line in the last 12 months 'B17001_002E' and # of households for which povery status is determined 'B17001_001E'.
+
+```{r warning=FALSE, message=FALSE}
+#------------------------------------------------------------------------------
+# households below 100% of the poverty line
+
+below_poverty.fn <- function(state,year,key){
+series1 <- 'B17001_001E'
+series2 <- 'B17001_002E'
+
+  call1 <- api_call.fn(state='06',year=2015,key=key,series=series1)
+  call2 <- api_call.fn(state='06',year=2015,key=key,series=series2)
+  
+# population for whom poverty status is determined
+pov.pop <- fromJSON(call1)
+pov.pop <- data.frame(rbindlist(lapply(pov.pop,function(x){
+  x<-unlist(x)
+  return(data.frame(name=x[1],pov.pop=x[2],state=x[3],county=x[4],tract=x[5]))
+})
+)) %>% filter(row_number() > 1)
+
+
+# income in the past 12 months below poverty level
+pov <- fromJSON(call2)
+pov <- data.frame(rbindlist(lapply(pov,function(x){
+  x<-unlist(x)
+  return(data.frame(name=x[1],pov=x[2],state=x[3],county=x[4],tract=x[5]))
+})
+)) %>% filter(row_number() >1)
+
+pov <- tbl_df(pov) %>% inner_join(pov.pop,by=c('name','state','county','tract')) %>%
+  mutate(pov.pct = as.numeric(as.character(pov))/as.numeric(as.character(pov.pop)))
+
+return(pov)
+}
+
+```
+
+
+```{r warning=FALSE, message=FALSE,eval=FALSE}
+# call the function to get poverty
+
+poverty <- tbl_df(rbind(below_poverty.fn(year=2015,state='06',key=key),
+                 below_poverty.fn(year=2015,state='41',key=key),
+                 below_poverty.fn(year=2015,state='53',key=key))) %>%
+            select(name,state,county,tract,pov.pct)
+head(poverty)
+
+#show the richest deciles of the distribution:
+upper.cut <- quantile(poverty$pov.pct,probs=c(0.1),na.rm=T)
+print.data.frame(poverty %>% select(name,pov.pct) %>% filter(pov.pct<=upper.cut) %>%
+             arrange(pov.pct) %>% filter(row_number()<=20))
+
+#show the poorest decile of the distribution
+lower.cut <- quantile(poverty$pov.pct,probs=c(0.9),na.rm=T)
+print.data.frame(poverty %>% select(name,pov.pct) %>% filter(pov.pct>=lower.cut) %>%
+             arrange(pov.pct) %>% filter(row_number() <= 20))
+
+
+```
+
+### Other Series
+
+I create a library of other functions similar to the function above for
+
+* Education - percent of population over the age of 25 w/o a high school diploma
+* Unemployment - percent of population over the age of 16 in the labor force unemployed
+* Per capital income
+* Health Insurance - percent of population without health insurance coverage
+
+... and lot of other stuff
+
+## SVI Pipeline
+
+The workflow to replicate a Social Vulnerability Index for the West Coast looks like this:
+
+### Step 1: Source the function library and provide API Key
+
+```{r,eval=FALSE}
+source('R:/PacFIN 1981_2014/fishing community database/fishingcommunity_shinyapp/community_explorer/SVI_censustract_functions.R')
+key <- 'yourAPIkeyhere'
+
+```
+
+### Step 2: Call the functions to get individual components of the SVI
+
+I have a function for each metric in the index so one could call each of those functions individually.  However, to ease the process a little, I also wrote a wrapper function which accepts as inputs:
+
+* year
+* key
+
+This function sequentially calls all the individual data gathering functions and binds them together in a single data frame:
+
+
+```{r, eval=FALSE}
+#Wrapper function to pull all the SVI data together
+
+svi_data_censustract.fn <- function(yr,key){
+  
+  #------------------------------------------------------------
+  #Basic Counts:
+  
+  # 1. total households by census tract
+  
+  total_households <- rbind(total_households.fn(state='06',year=yr,key=key),
+                            total_households.fn(state='41',year=yr,key=key),
+                            total_households.fn(state='53',year=yr,key=key))
+  
+  
+  # 2. total population
+  pop <- rbind(total_pop.fn(year=yr,state='06',key=key),
+               total_pop.fn(year=yr,state='41',key=key),
+               total_pop.fn(year=yr,state='53',key=key))
+
+  
+  # 3. population by age and sex
+  
+  pop.age.male <- rbind(pop_age_male.fn(year=yr,state='06',key=key),
+                        pop_age_male.fn(year=yr,state='41',key=key),
+                        pop_age_male.fn(year=yr,state='53',key=key))
+  
+  pop.age.female <- rbind(pop_age_female.fn(year=yr,state='06',key=key),
+                          pop_age_female.fn(year=yr,state='41',key=key),
+                          pop_age_female.fn(year=yr,state='53',key=key))
+  #--------------------------------------------------------------
+  
+  #--------------------------------------------------------------
+  # Socio-economic series
+  
+  # Socio-Economic Metrics
+  
+  # 1. population below the poverty line
+  # 2. unemployment age 16 and up in the labor force
+  # 3. per capital income
+  # 4. age 25 and up w/o high school diploma
+  # 5. age 65 or less w/o health insurance
+  
+  
+  
+  #------------------------------------------------------------------------------
+  # households below 100% of the poverty line
+  #'S0501_C01_104E'
+  
+  poverty <- tbl_df(rbind(below_poverty.fn(year=yr,state='06',key=key),
+                   below_poverty.fn(year=yr,state='41',key=key),
+                   below_poverty.fn(year=yr,state='53',key=key))) %>%
+              select(name,state,county,tract,pov.pct)
+  
+  #--------------------------------------------------------------------------------
+  
+  #---------------------------------------------------------------------------------
+  # unemployment age 16 and up looking for work
+  
+  unemp <- tbl_df(rbind(unemp.function(year=yr,state='06',key=key),
+                        unemp.function(year=yr,state='41',key=key),
+                        unemp.function(year=yr,state='53',key=key))) %>%
+            select(name,state,county,tract,unemp.rate)
+  
+  
+  #---------------------------------------------------------------------------------
+  
+  
+  #--------------------------------------------------------------------------------
+  # education - population 25 and over with less than a high school degree
+  # S0502_C01_047E - estimated population 25 and over
+  # S0502_C01_048E - population 25 and over with less than HS degree
+  
+  edu <- tbl_df(rbind(edu.fn(state='06',year=yr,key=key),
+                      edu.fn(state='41',year=yr,key=key),
+                      edu.fn(state='53',year=yr,key=key)))
+  
+  
+  #--------------------------------------------------------------------------------------------
+  
+  #--------------------------------------------------------------------------------------------
+  # per capital income
+  
+  pci <- rbind(pci.fn(state='06',year=yr,key=key),
+               pci.fn(state='41',year=yr,key=key),
+               pci.fn(state='53',year=yr,key=key))
+  #--------------------------------------------------------------------------------------------
+  
+  #-------------------------------------------------------------------------------------------
+  # health insurance
+  
+  #only available for 2012 onward
+  
+  #total population under 65 w/o health insurance
+  
+  ins <- rbind(health_ins.fn(state='06',year=yr,key=key),
+               health_ins.fn(state='41',year=yr,key=key),
+               health_ins.fn(state='53',year=yr,key=key))
+  
+  # now normalize by population 65 and under
+  p <- tbl_df(rbind(pop.age.male,pop.age.female)) %>%
+    filter(!series %in% c('M65_66','M67_69','M70_74','M75_79','M80_84','M85',
+                          'F65_66','F67_69','F70_74','F75_79','F80_84','F85')) %>%
+    group_by(name,state,county,tract) %>%
+    summarise(pop_under_65=sum(as.numeric(as.character(value)),na.rm=T))
+  
+  ins <- ins %>% inner_join(p,by=c('name','state','county','tract')) %>%
+    mutate(pct_no_healthins=no_health_insurance/pop_under_65)
+  
+  #--------------------------------------------------------------
+  
+  # Population metrics
+  # population less than 18
+  # population age 65 and older
+  # age 5 or more with disability
+  # % of single parent households
+  # hispanic or non-white race
+  # age 5 and older speaking english less than well
+  
+  #----------------------------------------------------------------------------------------------------
+  #population under 18 and population over 65
+  
+  
+  pop_under_18 <- tbl_df(rbind(pop.age.female,pop.age.male)) %>%
+    filter(series %in% c('M_5','M5_9','M10_14','M15_17','M18_19',
+                         'F_5','F5_9','F10_14','F15_17','F18_19')) %>%
+    group_by(name,state,county,tract) %>%
+    summarise(pop_under_18=sum(as.numeric(as.character(value))))
+  
+  pop_over_65 <- tbl_df(rbind(pop.age.female,pop.age.male)) %>%
+    filter(series %in% c('M_65_66','M67_69','M70_74','M75_79','M80_84','M85',
+                         'F_65_66','F67_69','F70_74','F75_79','F80_84','F85')) %>%
+    group_by(name,state,county,tract) %>%
+    summarise(pop_over_65=sum(as.numeric(as.character(value))))
+  
+  
+  #---------------------------------------------------------------------------------------------------
+  
+  
+  #---------------------------------------------------------------------------------------------------
+  # Age 65 or less with a disability
+  
+  disable <- rbind(disability.fn(state='06',year=yr,key=key),
+                   disability.fn(state='41',year=yr,key=key),
+                   disability.fn(state='53',year=yr,key=key))
+  
+  #merge with population figure to get % 
+  pop_under_65 <- tbl_df(rbind(pop.age.female,pop.age.male)) %>%
+    filter(!series %in% c('M65_66','M67_69','M70_74','M75_79','M80_85','M85',
+                          'F65_66','F67_69','F70_74','F75_79','F80_85','F85')) %>%
+    group_by(name,state,county,tract) %>%
+    summarise(pop_under_65=sum(as.numeric(as.character(value))))
+  
+  disable <- disable %>% inner_join(pop_under_65,by=c('name','state','county','tract')) %>%
+    mutate(disable_pct=disability/pop_under_65) %>%
+    select(name,state,county,tract,disable_pct)
+  
+  
+  
+  #---------------------------------------------------------------------------------------------------
+  
+  #---------------------------------------------------------------------------------------------------
+  # single parent
+  
+  # not sure which exact series people generally use for this but I'm going to use:
+  # B11001_006E - estimate!total!family households!other family!female householder, no husband present
+  
+  single.mom <- rbind(single_mom.fn(state='06',year=yr,key=key),
+                      single_mom.fn(state='41',year=yr,key=key),
+                      single_mom.fn(state='53',year=yr,key=key))
+  
+  
+  # merge with total households to normalize
+  single.mom <- single.mom %>% inner_join(total_households,by=c('name','state','county','tract')) %>%
+    mutate(single_mom_pct = as.numeric(as.character(single.mom))/as.numeric(as.character(total_households))) %>%
+     select(name,state,county,tract,single_mom_pct)
+  
+  #---------------------------------------------------------------------------------------------------
+  
+  #---------------------------------------------------------------------------------------------------
+  #Minority (hispanic and non-white race)
+  
+  white_alone <- rbind(total_white.fn(state='06',year=yr,key=key),
+                       total_white.fn(state='41',year=yr,key=key),
+                       total_white.fn(state='53',year=yr,key=key))
+  
+  white_alone <- white_alone %>% inner_join(pop,by=c('name','state','county','tract')) %>%
+    mutate(pct.nonwhite=1-(as.numeric(as.character(white_alone))/as.numeric(as.character(total_pop)))) %>%
+     select(name,state,county,tract,pct.nonwhite)
+  
+  
+  #---------------------------------------------------------------------------------------------------
+  
+  #--------------------------------------------------------------------------------------------------
+  # speaks english less than well
+  
+  
+  limited_eng_hh <- rbind(limited_english.fn(state='06',year=yr,key=key),
+                          limited_english.fn(state='41',year=yr,key=key),
+                          limited_english.fn(state='53',year=yr,key=key)) %>%
+    inner_join(total_households,by=c('name','state','county','tract')) %>%
+    mutate(pct_limited_eng=as.numeric(as.character(limited_eng_hh))/as.numeric(as.character(total_households))) %>%
+     select(name,state,county,tract,pct_limited_eng)
+  
+  
+  
+  #--------------------------------------------------------------------------------------------------
+  
+  
+  total_housing <- rbind(total_hu.fn(state='06',year=yr,key=key),
+                         total_hu.fn(state='41',year=yr,key=key),
+                         total_hu.fn(state='53',year=yr,key=key))
+  
+  #-------------------------------------------------------------------------------------------------
+  # housing units with 10 or more units per bldg
+  
+  #B25032_008E - total owner occupied housing units with 10-19 units in structure
+  #B25032_009E - total owner occupied housing units with 20-49 units in structure
+  #B25032_010E - total owner occupied housing units with 50 or more units in structure
+  
+  #B25032_019E - total renter occupied housing units with 10 - 19 units in structure
+  #B25032_020E - total renter occupied housing units with 20 - 49 units in structure
+  #B25032_021E - total renter occupied housing units with 50 or more units in structure
+  
+  
+  units_per_structure <- rbind(housing_structures.fn(state='06',year=yr,key=key),
+                               housing_structures.fn(state='41',year=yr,key=key),
+                               housing_structures.fn(state='53',year=yr,key=key)) %>%
+    inner_join(total_housing,by=c('name','state','county','tract')) %>%
+    mutate(housing_gt_10_pct=as.numeric(as.character(more_than_10_units))/as.numeric(as.character(total_housing_units)))  %>%
+    select(name,state,county,tract,housing_gt_10_pct)
+  
+  #-------------------------------------------------------------------------------------------------
+  
+  #-------------------------------------------------------------------------------------------------
+  #Mobile homes as a percent of the housing stock
+  
+  # B25032_022E - renter occupied mobile homes
+  # B25032_011E - owner occupied mobile homes
+  
+  mobile <- tbl_df(rbind(mobile_homes.fn(state='06',year=yr,key=key),
+                         mobile_homes.fn(state='41',year=yr,key=key),
+                         mobile_homes.fn(state='53',year=yr,key=key))) %>%
+    inner_join(total_housing,by=c('name','state','county','tract')) %>%
+    mutate(pct=as.numeric(as.character(total_mobile))/as.numeric(as.character(total_housing_units))) %>%
+    select(name,state,county,tract,pct)
+  
+  names(mobile) <- c('name','state','county','tract','mobile_pct')
+  
+  #-------------------------------------------------------------------------------------------------
+  
+  #-------------------------------------------------------------------------------------------------
+  #Occupants per room
+  
+  # summary table:
+  # B25014_005E - owner occupied 1.01 - 1.5 occupants per room
+  # B25014_006E - owner occupied 1.51 - 2 occupants per room
+  # B25014_007E - owner occupied 2.01 or more occupants per room
+  
+  # B25014_011E - renter occupied 1.01 - 1.5 occupants per room
+  # B25014_012E - renter occupied 1.51 - 2 occupants per room
+  # B25014_013E - renter occupied 2.01 or more occupants per room
+  
+  # B25001# - total housing units
+  
+  
+  people_per_room <- rbind(people_per_room.fn(state='06',year=yr,key=key),
+                           people_per_room.fn(state='41',year=yr,key=key),
+                           people_per_room.fn(state='53',year=yr,key=key)) %>%
+    inner_join(total_housing,by=c('name','state','county','tract')) %>%
+    mutate(pct_crowded=as.numeric(as.character(gt_1_per_room))/as.numeric(as.character(total_housing_units))) %>%
+    select(name,state,county,tract,pct_crowded)
+  
+  
+  #-------------------------------------------------------------------------------------------------
+  
+  
+  #-------------------------------------------------------------------------------------------------
+  # fraction of households with no vehicle avaiable
+  
+  #B08201_002E - total households with no vehicle available
+  
+  no_vehicle <- rbind(no_vehicles.fn(state='06',year=yr,key=key),
+                      no_vehicles.fn(state='41',year=yr,key=key),
+                      no_vehicles.fn(state='53',year=yr,key=key)) %>%
+    inner_join(total_housing,by=c('name','state','county','tract')) %>%
+    mutate(pct_no_vehicle=as.numeric(as.character(no_vehicle))/as.numeric(as.character(total_housing_units))) %>%
+    select(name,state,county,tract,pct_no_vehicle)  
+  
+  
+  
+  #-------------------------------------------------------------------------------------------------
+  
+  #-------------------------------------------------------------------------------------------------
+  # percent of population living in group quarters
+  
+  pct_group <- rbind(group_quarters.fn(state='06',year=yr,key=key),
+                     group_quarters.fn(state='41',year=yr,key=key),
+                     group_quarters.fn(state='53',year=yr,key=key)) %>%
+    inner_join(pop,by=c('name','state','county','tract')) %>%
+    mutate(pct_group=as.numeric(as.character(group_pop))/as.numeric(as.character(total_pop))) %>%
+    select(name,state,county,tract,pct_group)  
+  
+  
+  
+  #-------------------------------------------------------------------------------------------------
+  
+  
+  
+svi.df <- total_households %>% 
+          inner_join(pop,by=c('name','state','county','tract')) %>%
+          inner_join(poverty,by=c('name','state','county','tract')) %>%
+          inner_join(unemp,by=c('name','state','county','tract')) %>%
+          inner_join(edu,by=c('name','state','county','tract')) %>%
+          inner_join(pci,by=c('name','state','county','tract')) %>%
+          inner_join(ins,by=c('name','state','county','tract')) %>%
+          inner_join(pop_under_18,by=c('name','state','county','tract')) %>%
+          inner_join(pop_over_65,by=c('name','state','county','tract')) %>%
+    inner_join(disable,by=c('name','state','county','tract')) %>%
+    inner_join(single.mom,by=c('name','state','county','tract')) %>%
+    inner_join(white_alone,by=c('name','state','county','tract')) %>%
+    inner_join(limited_eng_hh,by=c('name','state','county','tract')) %>%
+    inner_join(units_per_structure,by=c('name','state','county','tract')) %>%
+    inner_join(mobile,by=c('name','state','county','tract')) %>%
+    inner_join(people_per_room,by=c('name','state','county','tract')) %>%
+    inner_join(no_vehicle,by=c('name','state','county','tract')) %>%
+    inner_join(pct_group,by=c('name','state','county','tract'))
+    
+return(svi.df)
+}
+```
+
+
+```{r,eval=FALSE}
+svi.df <- svi_data_censustract.fn(yr=2015,key=key)
+
+```
+
+```{r}
+getwd()
+svi.df <- readRDS('/Users/aaronmamula/Documents/R projects/spatial/R-spatial/data/svi_censustract_2015.RDA')
+```
+
+```{r}
+print.data.frame(svi.df[1:10,])
+```
+
+Note that, although there are few unnecessary columns in the mix we have the 16 series needed to at least replicate the CDC's version of an SVI:
+
+1. % below poverty
+2. % unemployed
+3. per capita income
+4. % over 25 w/o high school diploma
+5. population 65 and over
+6. population 17 and under (we actally have population 18/19 and younger)
+7. % of civilian population under 65 with a disability
+8. % single parent households
+9. % minority population
+10. % speaking English less than well
+11. % of housing stock with more than 10 rooms per bldg
+12. Mobile homes as a % of housing stock
+13. Crowding - % of housing units with more than 1 person per room
+14. % of households with no vehicle
+15. % of population in group quarters
+
+```{r}
+names(svi.df)
+```
+### Step 3: Construct the index values
+
+This is not a crucial step for the current discussion.  Mainly because there are multiple notions of how to construct a single index value for SVI in the literature.  The Center for Disease Control uses an index constructed in the following way:
+
+* for each of the 16 metrics calculate the deciles of the Census Tract-level distribution
+* for each Census Tract and metric create a 'flag' if an individual Census Tract is in the least desireable 10% of the distribution for that metric
+* add up the number of 'flags' for each census tract
+
+If we constuct an index in this way, then the approach is pretty straight forward:
+
+```{r}
+#first I need to convert population over 65 and under 18 to percents
+svi.df <- tbl_df(svi.df) %>%
+          mutate(pct_under_18=as.numeric(as.character(pop_under_18))/as.numeric(as.character(total_pop)),
+                 pct_over_65=as.numeric(as.character(pop_over_65))/as.numeric(as.character(total_pop)))
+
+#also, PCI is the only variable set up such that high values are good, so I'm going to invert it
+svi.df <- svi.df %>% mutate(pci=1/as.numeric(as.character(pci)))
+print.data.frame(svi.df[1:3,])
+```
+
+```{r}
+
+library(reshape2)
+svi.df <- tbl_df(svi.df) %>%
+          select(name,state,county,tract,pov.pct,pct_no_healthins,unemp.rate,
+                 pci,pct_no_diploma,pct.nonwhite,pct_limited_eng,pct_no_vehicle,
+                 pct_crowded,mobile_pct,housing_gt_10_pct,single_mom_pct,pct_over_65,
+                 pct_under_18,pct_group,disable_pct)
+
+#convert from wide to long for index contruction
+long <- melt(svi.df, id.vars = c("name", "state","county","tract"))
+
+head(long)
+
+```
+
+
+```{r}
+#create the upper and lower 10% for each variable
+long <- tbl_df(long) %>% 
+         group_by(variable) %>%
+            mutate(upper10=quantile(as.numeric(value),probs=c(0.9),na.rm=T)) %>%
+        ungroup() %>%
+        mutate(flag=ifelse(as.numeric(value) >= upper10,1,0))
+
+svi.censustract <- tbl_df(long) %>%
+                     group_by(name,state,county,tract) %>%
+                     summarise(flags=sum(flag,na.rm=T)) %>%
+                     ungroup() %>%
+                     arrange(-flags)
+print.data.frame(svi.censustract[1:10,])
+```
+
+## Extensions
+
+Although it is not trivial to change the geographic resolution of what I've done here, it's also not terribly difficult.  If one were interested in these data series at the county or state level the API calls could be ammended as such:
+
+```{r}
+api_call.fn <- function(year,series,key){
+  
+  
+if(year %in% c(2009,2010)){
+  
+  call <- paste('https://api.census.gov/data/',year,'/acs5?key=',key,'&get=',series,',NAME&for=county:*',
+                 sep="")
+}else if(year %in% c(2011,2012,2013,2014)){
+
+  call <- paste('https://api.census.gov/data/',year,'/acs5?get=NAME,',series,'&for=county:*&key=',
+                 key,sep="")
+}else{
+  call <- paste('https://api.census.gov/data/',year,'/acs/acs5?get=NAME,',series,'&for=county:*&key=',
+                 key,sep="")
+  
+}
+
+return(call)  
+}
+```
+
+As a quick example, we'll grab the population for which poverty status is determined at the county level for the entire U.S.
+
+```{r}
+    call <- api_call.fn(year=2015,key=key,series='B17001_001E')
+
+    df <- fromJSON(call)
+    df <- data.frame(rbindlist(lapply(df,function(x){
+      x<-unlist(x)
+      return(data.frame(name=x[1],value=x[2],state=x[3],county=x[4]))
+    })))
+
+    head(df %>% filter(row_number() >1))
+```
+
+Currently bringing county level estimates in via API calls would require some tweaking to the functions I wrote...but these tweaks would be pretty minor.  
