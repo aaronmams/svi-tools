@@ -112,6 +112,19 @@ ggplot() +
                        breaks = pretty_breaks(n = 10)) +
   guides(fill = guide_legend(reverse = TRUE)) + theme_bw()
 
+# and what if we zoom really tight on the Eureka Port Area
+ggplot() +
+  geom_polygon(data = subset(plotData,lat>=40.5 & lat <= 41 & long<=-123), aes(x = long, y = lat, group = group,
+                                                                 fill = uninsured)) +
+  geom_polygon(data = subset(county,lat>=40.5 & lat <= 41 & long<=-123), aes(x = long, y = lat, group = group),
+               fill = NA, color = "black", size = 0.25) +
+  geom_point(data=subset(point.df,name=='Eureka'),aes(x=long,y=lat),shape=18,size=3) + 
+  geom_text(data=subset(point.df,name=='Eureka'),
+            aes(x=long,y=lat,label=name),hjust=-0.1) + 
+  coord_map() +
+  scale_fill_distiller(palette = "Spectral", labels = percent,
+                       breaks = pretty_breaks(n = 5)) +
+  guides(fill = guide_legend(reverse = TRUE)) + theme_bw()
 
 ############################################################################################################
 ############################################################################################################
