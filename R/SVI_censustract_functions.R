@@ -410,31 +410,49 @@ return(unemp)
 
 edu.fn<-function(year,state,key){
 
-series1 <- 'B06009_001E'
-series2 <- 'B06009_002E'
+  series.df <- data.frame(series=c(
+    'B15001_013E','B15001_021E',
+    'B15001_029E','B15001_037E',
+    'B15001_054E','B15001_062E',
+    'B15001_070E','B15001_078E'),
+    labels=c('m_25_34_nodiploma','m_35_44_nodiploma',
+             'm_45_64_nodiploma','m_65_plus_nodiploma',
+             'f_25_34_nodiploma','f_35_44_nodiploma',
+             'f_45_64_nodiploma','f_65_plus_nodiploma'))
 
-call1 <- api_call.fn(year=year,state=state,key=key,series=series1)
-call2 <- api_call.fn(year=year,state=state,key=key,series=series2)
+    counts.df <- data.frame(series=c('B15001_011E','B15001_019E','B15001_027E','B15001_035E',
+                                   'B15001_052E','B15001_060E','B15001_068E','B15001_076E'),
+                          labels=c('m_25_34','m_35_44','m_45_64','m_65_plus',
+                                   'f_25_34','f_35_44','f_45_64','f_65_plus'))
+tmp.df <- list()
+for(i in 1:nrow(series.df)){
+  call1 <- api_call.fn(year=year,state=state,key=key,series=series.df$series[i])
+  call2 <- api_call.fn(year=year,state=state,key=key,series=counts.df$series[i])
 
-  
-pop25 <- fromJSON(call1)
-no_diploma <- fromJSON(call2)
+  total.age <- fromJSON(call2)
+  total.age <- data.frame(rbindlist(lapply(total.age,function(x){
+    x<-unlist(x)
+    return(data.frame(name=x[1],pop.age=x[2],state=x[3],county=x[4],tract=x[5]))
+  })
+  )) %>% filter(row_number() > 1)
 
-pop25 <- data.frame(rbindlist(lapply(pop25,function(x){
-  x<-unlist(x)
-  return(data.frame(name=x[1],pop25=x[2],state=x[3],county=x[4],tract=x[5]))
-})
-))
+  edu.age <- fromJSON(call1)  
+  edu.age <- data.frame(rbindlist(lapply(edu.age,function(x){
+    x<-unlist(x)
+    return(data.frame(name=x[1],edu.age=x[2],state=x[3],county=x[4],tract=x[5]))
+  })
+  )) %>% filter(row_number() > 1)
 
-no_diploma <- data.frame(rbindlist(lapply(no_diploma,function(x){
-  x<-unlist(x)
-  return(data.frame(name=x[1],edu25=x[2],state=x[3],county=x[4],tract=x[5]))
-})
-))
+  z <- edu.age %>% inner_join(total.age,by=c('name','state','county','tract')) %>%
+         mutate(age.range=as.character(counts.df$labels[i]))
+tmp.df[[i]] <- z        
+}  
 
-edu <- tbl_df(pop25) %>% filter(row_number() > 1) %>%
-  inner_join(tbl_df(no_diploma),by=c('name','state','county','tract')) %>%
-  mutate(pct_no_diploma=as.numeric(as.character(edu25))/as.numeric(as.character(pop25)))
+edu<- data.frame(rbindlist(tmp.df)) %>%
+      group_by(name,state,county,tract) %>%
+      summarise(no_diploma=sum(as.numeric(as.character(edu.age)),na.rm=T)
+                ,pop=sum(as.numeric(as.character(pop.age)),na.rm=T)) %>%
+     mutate(pct_no_diploma=no_diploma/pop)
 
 return(edu)
 }
