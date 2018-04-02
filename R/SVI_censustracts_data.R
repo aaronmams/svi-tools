@@ -26,7 +26,7 @@ source('R/SVI_censustract_functions.R')
 ############################################################################
 ############################################################################
 
-key <- 'f5a32f694a14b28acf7301f4972eaab8551eafda'
+key <- ''
 
 #call the svi census tract function to build the data
 #svi.df <- svi_data_censustract.fn(yr=2015,key=key)
