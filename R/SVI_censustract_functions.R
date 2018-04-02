@@ -230,8 +230,8 @@ return(data.frame(rbindlist(pop.age.female)))
 # estimates for a particular year
 
 #------------------------------------------------------------------------------
-# households below 100% of the poverty line
-#'S0501_C01_104E'
+# population for which poverty status is determined B17001_001E
+# population with income below the poverty line in the last 12 months B17001_002E
 
 below_poverty.fn <- function(state,year,key){
 
