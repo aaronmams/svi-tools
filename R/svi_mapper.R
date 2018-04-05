@@ -12,7 +12,6 @@ library(dplyr)
 #----------------------------------------------------------------------------
 
 
-
 #-----------------------------------------------------------------------
 # Get shapefiles for county and place boundaries
 ca_place <- st_read("shapefiles/cb_2016_06_place_500K/cb_2016_06_place_500K.shp") %>% 
