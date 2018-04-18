@@ -45,3 +45,19 @@ basemap <- ggplot() +
 bm2 <- basemap + 
   geom_sf(data=subset(ca_place,NAME %in% places),colour='red',fill=NA) + theme_bw()
 #--------------------------------------------------------------------------
+
+
+#-------------------------------------------------------------------------
+#join port point locations to county
+ports.point <- tbl_df(read.csv('data/port_locs.csv')) %>%
+          select(PACFIN_PORT_CODE, PORT_NAME, LATITUDE, LONGITUDE) %>%
+          filter(!is.na(LATITUDE) & !is.na(LONGITUDE))
+names(ports.point) <- c('port_code','port_name','latitude','longitude')
+
+ports.point <- st_as_sf(ports.point, coords = c("longitude","latitude"), crs = 4326)
+
+port.county <- st_join(ports.point,ca_county)
+#--------------------------------------------------------------------------
+
+
+
