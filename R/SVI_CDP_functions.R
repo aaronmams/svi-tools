@@ -9,7 +9,28 @@ library(rgeos)
 library(dplyr)
 library(data.table)
 
-# A script to generate functions that allow us to construct the 16 separate
+############################################################################
+############################################################################
+############################################################################
+# This script compiles the data for social vulnerability indicators for 
+# Census Designated Places for CA, OR, and WA
+
+# The script functions in 3 stages:
+
+#1. get the individual data series
+#2. organize and aggregate the individual data series in a long form data frame of 
+#      social vulnerability metrics
+#3. bind all the metrics together into a single data frame
+############################################################################
+############################################################################
+############################################################################
+
+############################################################################
+############################################################################
+############################################################################
+############################################################################
+
+# First I establish some functions that allow us to construct the 16 separate
 # pieces of the SVI for all census tracts.
 
 # Each function has 2 inputs:
@@ -20,13 +41,9 @@ library(data.table)
 
 key <- 'f5a32f694a14b28acf7301f4972eaab8551eafda'
 
-
-#################################################################################
-#################################################################################
-#################################################################################
-#################################################################################
-#################################################################################
-
+#=======================================================================
+# this function takes a year, series, state, and API key and formats a
+# url for the api call to get the chosen data series
 api_call.fn <- function(year,series,key,state){
   
   
@@ -52,11 +69,10 @@ api_call.fn <- function(year,series,key,state){
   
   return(call)  
 }
-#################################################################################
-#################################################################################
-#################################################################################
-#################################################################################
-#################################################################################
+#==================================================================
+
+#=================================================================
+# this function uses the api_call.fn() to get the actual data 
 
 data.function <- function(year,series,series.name,key,state){
   call <- api_call.fn(year=year,key=key,series=series,state=state)
@@ -69,6 +85,7 @@ data.function <- function(year,series,series.name,key,state){
   )) %>% filter(row_number() > 1)
   return(df)
 }
+#================================================================
 ##################################################################################
 ##################################################################################
 ##################################################################################
@@ -77,9 +94,10 @@ data.function <- function(year,series,series.name,key,state){
 ##################################################################################
 ##################################################################################
 ##################################################################################
-# now call the get.data function for each of the series needed to construct
-# our metrics
+# THIS IS THE BEGINNING OF STEP 1: GETTING THE INDIVIDUAL DATA SERIES
 
+#=====================================================================================
+#total population
 pop <- rbind(data.function(year=2015,series='B01001_001E',series.name='total_population',
                            key=key,state='06'),
              data.function(year=2015,series='B01001_001E',series.name='total_population',
@@ -87,18 +105,19 @@ pop <- rbind(data.function(year=2015,series='B01001_001E',series.name='total_pop
              data.function(year=2015,series='B01001_001E',series.name='total_population',
                            key=key,state='41')
              )
+#========================================================================================
 
+#========================================================================================
 #total households - 'B11001_001E'
-house.ca <- data.function(year=2015,series='B11001_001E',series.name='total_households',
-                        key=key,state='06')
+households <- rbind(data.function(year=2015,series='B11001_001E',series.name='total_households',
+                        key=key,state='06'),
+                  data.function(year=2015,series='B11001_001E',series.name='total_households',
+                                key=key,state='41'),
+                  data.function(year=2015,series='B11001_001E',series.name='total_households',
+                                key=key,state='53'))
+#================================================================================
 
-################################################################################
-################################################################################
-################################################################################
-################################################################################
-################################################################################
-################################################################################
-
+#================================================================================
 #population by age and sex
 
 #------------------------------------------------------------------------------------
@@ -180,17 +199,11 @@ pop.female <- rbind(data.frame(rbindlist(pop.female.ca)),
 
 #remove large lists from workspace
 rm(list=c('pop.female.ca','pop.female.or','pop.female.wa'))
+#=================================================================================
 
 
 
-#-----------------------------------------------------------------------------------------
-
-######################################################################################
-######################################################################################
-######################################################################################
-######################################################################################
-######################################################################################
-
+#===================================================================================
 # A function to get percent of households below the poverty line from the ACS 5 year
 # estimates for a particular year
 
@@ -216,18 +229,10 @@ pov <- tbl_df(pov) %>% left_join(status,by=c('name','state')) %>%
          mutate(value=as.numeric(as.character(value.x))/as.numeric(as.character(value.y))) %>%
          select(name,state,value) %>%
          mutate(data_name='pov_pct')
+#=================================================================================
 
 
-
-#################################################################################
-#################################################################################
-#################################################################################
-#################################################################################
-#################################################################################
-#################################################################################
-#################################################################################
-#################################################################################
-#################################################################################
+#=================================================================================
 # Unemployment
 series.df <- data.frame(series=c(
   'B23001_008E','B23001_015E','B23001_022E','B23001_029E','B23001_036E','B23001_043E','B23001_050E','B23001_057E',
@@ -299,7 +304,95 @@ lf <- tbl_df(rbind(data.frame(rbindlist(lf.ca)),
                       data.frame(rbindlist(lf.wa))))
 
 rm(list=c('lf.ca','lf.or','lf.wa'))
+#=================================================================================
 
+#=================================================================================
+# EDUCATION - POPULATION PCT 25 AND OVER W/LESS THAN A HIGH SCHOOL DIPLOMA
+
+series.df <- data.frame(series=c(
+  'B15001_013E','B15001_021E',
+  'B15001_029E','B15001_037E',
+  'B15001_054E','B15001_062E',
+  'B15001_070E','B15001_078E'),
+  labels=c('m_25_34_nodiploma','m_35_44_nodiploma',
+           'm_45_64_nodiploma','m_65_plus_nodiploma',
+           'f_25_34_nodiploma','f_35_44_nodiploma',
+           'f_45_64_nodiploma','f_65_plus_nodiploma'))
+
+series.df$series <- as.character(series.df$series)
+series.df$label <- as.character(series.df$label)
+
+edu.ca <- list()
+for(i in 1:nrow(series.df)){
+  edu.ca[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                              key=key,state='06')
+  Sys.sleep(time = 20)
+}
+edu.or <- list()
+for(i in 1:nrow(series.df)){
+  edu.or[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                              key=key,state='41')
+  Sys.sleep(time = 20)
+}
+edu.wa <- list()
+for(i in 1:nrow(series.df)){
+  edu.wa[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                              key=key,state='53')
+  Sys.sleep(time = 20)
+}
+
+edu <- tbl_df(rbind(data.frame(rbindlist(edu.ca)),
+                   data.frame(rbindlist(edu.or)),
+                   data.frame(rbindlist(edu.wa))))
+
+rm(list=c('edu.ca','edu.or','edu.wa'))
+
+
+series.df <- data.frame(series=c('B15001_011E','B15001_019E','B15001_027E','B15001_035E',
+                                 'B15001_052E','B15001_060E','B15001_068E','B15001_076E'),
+                        labels=c('m_25_34','m_35_44','m_45_64','m_65_plus',
+                                 'f_25_34','f_35_44','f_45_64','f_65_plus'))
+series.df$series <- as.character(series.df$series)
+series.df$label <- as.character(series.df$label)
+
+popcount.ca <- list()
+for(i in 1:nrow(series.df)){
+  popcount.ca[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                               key=key,state='06')
+  Sys.sleep(time = 20)
+}
+popcount.or <- list()
+for(i in 1:nrow(series.df)){
+  popcount.or[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                               key=key,state='41')
+  Sys.sleep(time = 20)
+}
+popcount.wa <- list()
+for(i in 1:nrow(series.df)){
+  popcount.wa[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                               key=key,state='53')
+  Sys.sleep(time = 20)
+}
+
+popcount <- tbl_df(rbind(data.frame(rbindlist(popcount.ca)),
+                    data.frame(rbindlist(popcount.or)),
+                    data.frame(rbindlist(popcount.wa))))
+
+rm(list=c('popcount.ca','popcount.or','popcount.wa'))
+#==========================================================================
+
+
+#===========================================================================
+#PER CAPITA INCOME
+
+pci <- rbind(data.function(year=2015,series='B19301_001E',series.name='pci',
+                           key=key,state='06'),
+             data.function(year=2015,series='B19301_001E',series.name='pci',
+                           key=key,state='41'),
+             data.function(year=2015,series='B19301_001E',series.name='pci',
+                           key=key,state='53'))
+#============================================================================  
+  
 #################################################################################
 #################################################################################
 #################################################################################
@@ -309,13 +402,19 @@ rm(list=c('lf.ca','lf.or','lf.wa'))
 #################################################################################
 #################################################################################
 #################################################################################
+# THIS IS THE BEGINNING OF STEP 2: FORMATTING THE INDIVIDUAL DATA FRAMES AND 
+# AGGREGATING INDIVIDUAL DATA SERIES TO FORM METRICS
 
 #now at this point we have all the individual data series compiled in a 
 # long form data frame.  we need to massage that data frame a little to 
 # create the individual series
 
 #total population
+# just drop the data series field
+pop <- pop %>% select(name,state,value,data_name)
+
 #total households
+households <- households %>% select(name,state,value,data_name)
 
 # pct of population 17 and under
 pop.U17 <- tbl_df(rbind(pop.female,pop.male)) %>%
@@ -351,7 +450,63 @@ pop.65 <- tbl_df(rbind(pop.female,pop.male)) %>%
 # unemployment is by age and sex so we need to merge it with
 # labor force population and then normalize
 
-unemp <- tbl_df(unemp) %>% inner_join(lf,by=c('name','state'))
+unemp <- tbl_df(unemp) %>% group_by(name,state) %>%
+          summarise(unemp = sum(as.numeric(as.character(value))))
 
+lf <- tbl_df(lf) %>% group_by(name,state) %>%
+  summarise(lf = sum(as.numeric(as.character(value))))
+
+unemp <- unemp %>% inner_join(lf,by=c('name','state')) %>%
+            mutate(value=unemp/lf,data_name='urate') %>%
+         select(name,state,value,data_name)
+#-----------------------------------------------------------
 
 #-----------------------------------------------------------
+edu <- tbl_df(edu) %>% group_by(name,state) %>%
+        summarise(nodiploma=sum(as.numeric(as.character(value))))
+
+popcount <- tbl_df(popcount) %>% group_by(name,state) %>% 
+             summarise(total=sum(as.numeric(as.character(value))))
+
+edu <- edu %>% inner_join(popcount,by=c('name','state')) %>%
+        group_by(name,state) %>%
+          summarise(value=nodiploma/total,
+                 data_name='nodiploma.pct') 
+       
+#-----------------------------------------------------------
+
+#-----------------------------------------------------------
+# per capita income is well formatted but we don't need the 
+# series names
+
+pci <- tbl_df(pci) %>% select(name,state,value,data_name) 
+         
+#-----------------------------------------------------------
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+# THIS IS THE BEGINNING OF STEP 3: PUTTING ALL THE METRICS TOGETHER IN A SINGLE
+# LONG FORM DATA FRAME.
+
+# put everything together in long form and save to RDA
+# R doesn't like rbinding grouped data frames so just ungroup everything beforehand
+pop.U17 <- pop.U17 %>% ungroup()
+pop.65 <- pop.65 %>% ungroup()
+pop <- pop %>% ungroup()
+pov <- pov %>% ungroup()
+households <- households %>% ungroup()
+unemp <- unemp %>% ungroup()
+edu <- edu %>% ungroup()
+pci <- pci %>% ungroup()
+
+df <- rbind(pop.U17,pop.65,pop,pov,households,unemp,edu,pci)
+saveRDS(df,'data/svi_cdp.RDA')
+
