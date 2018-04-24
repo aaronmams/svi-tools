@@ -36,11 +36,11 @@ bm2 <- basemap +
 test <- st_join(ca_place,ca_county)
 
 #now map all places in a subset of counties
-counties <- c('Del Norte')
+counties <- c('Del Norte','Humboldt','Mendocino')
 places <- test$NAME.x[test$NAME.y %in% counties]
 
 basemap <- ggplot() + 
-  geom_sf(data = subset(ca_county,NAME %in% counties), colour = "gray50", fill=NA) 
+  geom_sf(data = subset(ca_county,NAME %in% counties), colour = "gray50", fill="gray50") 
 
 bm2 <- basemap + 
   geom_sf(data=subset(ca_place,NAME %in% places),colour='red',fill=NA) + theme_bw()
@@ -60,4 +60,6 @@ port.county <- st_join(ports.point,ca_county)
 #--------------------------------------------------------------------------
 
 
-
+basemap <- ggplot() + 
+  geom_sf(data = port.county, colour = "gray50", 
+          fill="gray50") 

@@ -1,0 +1,161 @@
+---
+title: "Fishing Community Geography"
+author: "aaron mamula"
+date: "4/20/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, warning=F}
+library(dplyr)
+library(ggplot2)
+library(sf)
+
+```
+
+## Overview
+
+The basic issue that I'll discuss here is that our current notion of a Fishing Community, for which we can observe fishery outcomes like landings/participating vessels/employed crew/etc, doesn't perfectly match the spatial units of the Census Bureau data, from which we get social vulnerability indicators.
+
+Specifically, we can observe landings and other fishery outcomes for ports and port areas.  We observe socio-cultural data series at the Census Tract, Census Designated Place, County, or State level.
+
+The challenge here is that ports are defined as points in space (pairs of lat/long coordinates) while Census Tracts, CDPs, Counties, etc are polygons with boundaries defined by arrays of latitude longitude coordinates.
+
+## Ports
+
+Our data include ports as single lat/long pairs.  
+
+```{r}
+ports <- read.csv('/Users/aaronmamula/Documents/R projects/svi-tools/data/port_locs.csv')
+
+head(ports)
+
+#plot a few ports on a basic cartesian space
+ca.northcoast <- tbl_df(ports) %>% filter(PACFIN_PORT_CODE %in% c('CRS','ERK','BRG','BDG'))
+
+ggplot(ca.northcoast,aes(x=LONGITUDE,y=LATITUDE,label=PORT_NAME)) + geom_point() + 
+   geom_text(hjust=-0.25) + ylim(c(37,43)) + xlim(-125,-122) + theme_bw()
+```
+
+
+## Census Designated Places
+
+Census Designated Places are defined as spatial polygons.  From the Census Bureau's Tiger Data Mart we can get a shapefile with these boundaries.
+
+```{r}
+#-----------------------------------------------------------------------
+# Get shapefiles for county and place boundaries
+file.exists('/Users/aaronmamula/Documents/R projects/svi-tools/shapefiles/cb_2016_06_place_500K/cb_2016_06_place_500K.shp')
+
+ca_place <- st_read('/Users/aaronmamula/Documents/R projects/svi-tools/shapefiles/cb_2016_06_place_500K/cb_2016_06_place_500K.shp') %>% 
+  st_transform(4326) # WGS84
+
+ca_county <- st_read("/Users/aaronmamula/Documents/R projects/svi-tools/shapefiles/cb_2015_us_county_500K/cb_2015_us_county_500K.shp") %>% 
+  st_transform(4326) %>%  # WGS84
+  filter(STATEFP=='06') 
+#-------------------------------------------------------------------------
+```
+
+Then we can clip these shapefiles together, using R's simple feature's package, and plot CDP polygons with county boundaries:
+
+```{r,eval=FALSE}
+#-------------------------------------------------------------------------
+# map county and place boundaries for CA together
+basemap <- ggplot() + 
+  geom_sf(data = ca_county, colour = "gray50", fill=NA) 
+
+bm2 <- basemap + 
+  geom_sf(data=ca_place,colour='red',fill=NA)
+#--------------------------------------------------------------------------
+
+bm2
+```
+
+![CDP and County Boundaries for California](ca_cdp_county.png)
+
+## Joining Geographies
+
+One of the cool things about R's simple features package is that it allows us to treat shapefiles like data frames...which mean we can join boundaries together.  This is really useful if we want to display two geographies together but only for a subset of data defined by a filter on one of the geographies.
+
+```{r}
+#-------------------------------------------------------------------------
+#join places and counties on geometry
+test <- st_join(ca_place,ca_county)
+
+head(test)
+```
+
+One cool thing to note here is that:
+
+* in the CDP data we had an observation for Long Beach
+* Long Beach exists in Los Angeles and Orange Counties
+* in the joined data above we have a row for Long Beach in Los Angeles County and a row for Long Beach in Orange County.
+
+```{r, eval=FALSE}
+#now map all places in a subset of counties
+counties <- c('Del Norte','Humboldt','Mendocino')
+places <- test$NAME.x[test$NAME.y %in% counties]
+
+basemap <- ggplot() + 
+  geom_sf(data = subset(ca_county,NAME %in% counties), colour = "gray50", fill="gray50") 
+
+bm2 <- basemap + 
+  geom_sf(data=subset(ca_place,NAME %in% places),colour='red',fill=NA) + theme_bw()
+#--------------------------------------------------------------------------
+```
+
+
+![CDP and County Boundaries for Del Norte, Humboldt, and Mendocino Counties](ca_northcoast_cdps.png)
+
+### Adding Ports to the Mix
+
+```{r}
+#join port point locations to county
+ports.point <- tbl_df(ports) %>%
+          select(PACFIN_PORT_CODE, PORT_NAME, LATITUDE, LONGITUDE) %>%
+          filter(!is.na(LATITUDE) & !is.na(LONGITUDE))
+names(ports.point) <- c('port_code','port_name','latitude','longitude')
+
+ports.point <- st_as_sf(ports.point, coords = c("longitude","latitude"), crs = 4326)
+
+port.county <- st_join(ports.point,ca_county)
+names(port.county) <- c('port_code','port_name','state','county','county_id',
+                        'af_geoid','geoid','county_name','lsad','aland','awater',
+                        'geo')
+head(port.county)
+```
+
+Merging based on geometry is good if we want to know which ports are in which counties but it's not a great option for visualization as it joins the geometries...
+
+Assigning ports to counties based on cartographic boundaries might also be over-kill since we already have ports assigned to counties.  On the one hand, the shapefile solution is nice in that it is reproduceable and open access but using the PacFIN assignment of ports to counties is probably fine.
+
+For visualization it's probably sufficient to just layer port points over a polygon layer:
+
+
+```{r}
+library(tidyverse)
+counties <- c('Del Norte','Humboldt','Mendocino')
+ports.point <- ports.point %>% 
+  mutate(
+  lon = map_dbl(geometry, ~st_centroid(.x)[[1]]),
+  lat = map_dbl(geometry, ~st_centroid(.x)[[2]])
+) 
+
+basemap <- ggplot() + 
+  geom_sf(data = subset(ca_county,NAME %in% counties), colour = "red", fill="NA") 
+
+basemap + geom_sf(data=subset(ports.point,port_code %in% c('CRS','ERK','BRG','ALB'))) + 
+  geom_text(data=subset(ports.point,port_code %in% c('CRS','ERK','BRG','ALB'))
+            ,aes(label = port_name, x = lon, y = lat), size = 2,hjust=-0.25)
+
+```
+
+## Issues
+
+This process is pretty solid for ports with an actual lat/long coordinates but breaks down for ports which cannot be assigned to a unique point in space.  Example: some PacFIN ports are things like, "landed in Washington transported to Oregon".  Such landings locations won't have a lat/long.  This may not be an issue at all since we might not be interested in such landings locations...but it might be an issue, this is an open question. 
+
+## Summary
+
