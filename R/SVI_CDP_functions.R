@@ -117,6 +117,18 @@ households <- rbind(data.function(year=2015,series='B11001_001E',series.name='to
                                 key=key,state='53'))
 #================================================================================
 
+#=================================================================================
+#total housing units
+
+# B25001_001E - total housing units
+housing.units <- rbind(data.function(year=2015,series='B25001_001E',series.name='total_housing_units',
+                                     key=key, state='06'),
+                       data.function(year=2015,series='B25001_001E',series.name='total_housing_units',
+                                     key=key, state='41'),
+                       data.function(year=2015,series='B25001_001E',series.name='total_housing_units',
+                                     key=key, state='53'))
+#=================================================================================
+
 #================================================================================
 #population by age and sex
 
@@ -393,6 +405,197 @@ pci <- rbind(data.function(year=2015,series='B19301_001E',series.name='pci',
                            key=key,state='53'))
 #============================================================================  
   
+
+#============================================================================
+#Health Insurance - pct of population with no health insurance
+
+# B27001_
+# 005E, 008E, 011E, 014E, 017E, 020E, 023E -males without health insurance
+# 033E, 036E, 039E, 042E, 045E, 048E, 051E -females without health insurance
+
+series.df <- data.frame(series=c(
+  'B27001_005E','B27001_008E','B27001_011E','B27001_014E','B27001_017E','B27001_020E','B27001_023E',
+  'B27001_033E','B27001_036E','B27001_039E','B27001_042E','B27001_045E','B27001_048E','B27001_051E'),
+  labels=c('m6','m6_17','m18_24','m25_34','m35_44','m45-54','m55_64',
+           'f6','f6_17','f18_24','f25_34','f35_44','f45_54','f55_64'))
+
+series.df$series <- as.character(series.df$series)
+series.df$label <- as.character(series.df$label)
+
+ins.ca <- list()
+for(i in 1:nrow(series.df)){
+  ins.ca[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                               key=key,state='06')
+  Sys.sleep(time = 20)
+}
+ins.or <- list()
+for(i in 1:nrow(series.df)){
+  ins.or[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                               key=key,state='41')
+  Sys.sleep(time = 20)
+}
+ins.wa <- list()
+for(i in 1:nrow(series.df)){
+  ins.wa[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                               key=key,state='53')
+  Sys.sleep(time = 20)
+}
+
+ins <- tbl_df(rbind(data.frame(rbindlist(ins.ca)),
+                         data.frame(rbindlist(ins.or)),
+                         data.frame(rbindlist(ins.wa))))
+
+rm(list=c('ins.ca','ins.or','ins.wa'))
+
+series.df <- data.frame(series=c(
+  'B27001_003E','B27001_006E','B27001_009E','B27001_012E','B27001_015E','B27001_018E','B27001_021E',
+  'B27001_031E','B27001_034E','B27001_037E','B27001_040E','B27001_043E','B27001_046E','B27001_049E'),
+  labels=c('m6','m6_17','m18_24','m25_34','m35_44','m45-54','m55_64',
+           'f6','f6_17','f18_24','f25_34','f35_44','f45_54','f55_64'))
+
+series.df$series <- as.character(series.df$series)
+series.df$label <- as.character(series.df$label)
+
+ins.pop.ca <- list()
+for(i in 1:nrow(series.df)){
+  ins.pop.ca[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                               key=key,state='06')
+  Sys.sleep(time = 20)
+}
+ins.pop.or <- list()
+for(i in 1:nrow(series.df)){
+  ins.pop.or[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                               key=key,state='41')
+  Sys.sleep(time = 20)
+}
+ins.pop.wa <- list()
+for(i in 1:nrow(series.df)){
+  ins.pop.wa[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                               key=key,state='53')
+  Sys.sleep(time = 20)
+}
+
+ins.pop <- tbl_df(rbind(data.frame(rbindlist(ins.pop.ca)),
+                    data.frame(rbindlist(ins.pop.or)),
+                    data.frame(rbindlist(ins.pop.wa))))
+
+rm(list=c('ins.pop.ca','ins.pop.or','ins.pop.wa'))
+
+#===========================================================================
+
+#===========================================================================
+#Disability - age 65 and under with a disability
+  
+  # get the list of data series
+  series.df <- data.frame(series=c('B18101_004E','B18101_007E','B18101_010E','B18101_013E',
+                                   'B18101_023E','B18101_026E','B18101_029E','B18101_032E'),
+                          label=c('dis_m_5','dis_m_5_17','dis_m_18_34','dis_m_35_64',
+                                  'dis_f_5','dis_f_5_17','dis_f_18_34','dis_f_35_64'))
+series.df$series <- as.character(series.df$series)
+series.df$label <- as.character(series.df$label) 
+
+dis.pop.ca <- list()
+for(i in 1:nrow(series.df)){
+  dis.pop.ca[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                                   key=key,state='06')
+  Sys.sleep(time = 20)
+}
+ 
+dis.pop.or <- list()
+for(i in 1:nrow(series.df)){
+  dis.pop.or[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                                   key=key,state='06')
+  Sys.sleep(time = 20)
+}
+
+dis.pop.wa <- list()
+for(i in 1:nrow(series.df)){
+  dis.pop.wa[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                                   key=key,state='06')
+  Sys.sleep(time = 20)
+}
+
+dis.pop <- rbind(data.frame(rbindlist(dis.pop.ca)),
+                 data.frame(rbindlist(dis.pop.or)),
+                 data.frame(rbindlist(dis.pop.wa)))
+
+rm(list=c('dis.pop.ca','dis.pop.or','dis.pop.wa'))
+
+
+#---------------------------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------------
+## Single parent household, female head of household, no spouse present, as a 
+# % of households
+
+# not sure which exact series people generally use for this but I'm going to use:
+  # B11001_006E - estimate!total!family households!other family!female householder, no husband present
+  
+single.ca <- data.function(state='06',series='B11001_006E', key=key, year=2015,
+                           series.name='single_mom_household')
+single.or <- data.function(state='41',series='B11001_006E', key=key, year=2015,
+                           series.name='single_mom_household')
+single.wa <- data.function(state='53',series='B11001_006E', key=key, year=2015,
+                           series.name='single_mom_household')
+
+single.mom.hh <- data.frame(rbind(single.ca,single.or,single.wa))
+
+#------------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------------
+# Total white population
+
+# B01001A_001E - total white population
+
+white.pop <- rbind(data.function(state='06',series='B01001A_001E',key=key,year=2015,
+                           series.name='total_pop_white'),
+            data.function(state='41',series='B01001A_001E',key=key,year=2015,
+              series.name='total_pop_white'),
+            data.function(state='53',series='B01001A_001E',key=key,year=2015,
+              series.name='total_pop_white'))
+#------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------
+# limited english households
+#B16002_004E, _007E, _010E, _013E
+# get the list of data series
+series.df <- data.frame(series=c('B16002_004E','B16002_007E','B16002_010E','B16002_013E'),
+                        label=c('limited_eng_span','limited_eng_IE','limited_english_AP',
+                                'limited_english_oth'))
+series.df$series <- as.character(series.df$series)
+series.df$label <- as.character(series.df$label) 
+
+le.ca <- list()
+for(i in 1:nrow(series.df)){
+  le.ca[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                                   key=key,state='06')
+  Sys.sleep(time = 20)
+}
+
+le.or <- list()
+for(i in 1:nrow(series.df)){
+  le.or[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                                   key=key,state='06')
+  Sys.sleep(time = 20)
+}
+
+le.wa <- list()
+for(i in 1:nrow(series.df)){
+  le.wa[[i]] <- data.function(year=2015,series=series.df$series[i],series.name=series.df$label[i],
+                                   key=key,state='06')
+  Sys.sleep(time = 20)
+}
+
+le.pop <- rbind(data.frame(rbindlist(le.ca)),
+                 data.frame(rbindlist(le.or)),
+                 data.frame(rbindlist(le.wa)))
+
+rm(list=c('le.ca','le.or','le.wa'))
+
+
+#-----------------------------------------------------------------------------------
+#==========================================================================
+
 #################################################################################
 #################################################################################
 #################################################################################
@@ -482,6 +685,72 @@ edu <- edu %>% inner_join(popcount,by=c('name','state')) %>%
 pci <- tbl_df(pci) %>% select(name,state,value,data_name) 
          
 #-----------------------------------------------------------
+
+#-----------------------------------------------------------
+# no health insurance needs to be summarised then normalized
+# by total population from 5 - 65
+
+
+ins.pop <- ins.pop %>% group_by(name,state) %>%
+             summarise(value=sum(as.numeric(as.character(value)))) 
+
+ins <- ins %>% 
+  group_by(name,state) %>%
+  summarise(value=sum(as.numeric(as.character(value)))) %>%
+  inner_join(ins.pop,by=c('name','state')) %>%
+  mutate(value=value.x/as.numeric(as.character(value.y)),
+         data_name='pct_no_healthins')
+
+#-----------------------------------------------------------
+
+#-----------------------------------------------------------
+# population percent with a disability (age 65 and under)
+
+dis.pop.agg <- dis.pop %>% group_by(name,state) %>%
+                  summarise(value=sum(as.numeric(as.character(value)),na.rm=T)) 
+                  
+pop.u65 <-   rbind(pop.female,pop.male) %>%
+              filter(!data_name %in% c('F5','F65_66','F67_69','F70_74','F75_79','F80_84','F85',
+                                       'M5','M65_66','M67_69','M70_74','M75_79','M80_84','M85') ) %>%
+              group_by(name,state) %>%
+              summarise(tpop=sum(as.numeric(as.character(value))))
+              
+dis.pop.agg <- dis.pop.agg %>% left_join(pop.u65,by=c('name','state')) %>%
+                  mutate(value=value/tpop,data_name='disability_pct')  %>%
+                  select(name,state,value,data_name)
+
+
+#single mother head of household
+single.mom.hh <- single.mom.hh %>% inner_join(households,by=c('name','state')) %>%
+                   mutate(value=as.numeric(as.character(value.x))/as.numeric(as.character(value.y))) %>%
+                   mutate(data_name='singlemom_hh_pct') %>%
+                   select(name,state,value,data_name)
+
+#-----------------------------------------------------------
+
+#-----------------------------------------------------------
+# non-white as a pop pct
+
+white.pop.pct <- white.pop %>% inner_join(pop,by=c('name','state')) %>%
+                  mutate(value=1-(as.numeric(as.character(value.x))/as.numeric(as.character(value.y)))) %>%
+                  select(name,state,value) %>%
+                  mutate(data_name='pct_nonwhite')
+
+
+#----------------------------------------------------------
+
+#----------------------------------------------------------
+#limited english households as a % of total households
+le.pop.pct <- le.pop %>%  
+               group_by(name,state) %>%
+               summarise(value=sum(as.numeric(as.character(value)),na.rm=T)) %>%
+                inner_join(households,by=c('name','state')) %>%
+               mutate(value=as.numeric(as.character(value.x))/as.numeric(as.character(value.y))) %>%
+               select(name,state,value) %>%
+              mutate(data_name='le_hh_pct')
+
+
+#----------------------------------------------------------
 ###############################################################################
 ###############################################################################
 ###############################################################################
@@ -506,6 +775,11 @@ households <- households %>% ungroup()
 unemp <- unemp %>% ungroup()
 edu <- edu %>% ungroup()
 pci <- pci %>% ungroup()
+ins <- ins %>% ungroup() 
+dis.pop.agg <- dis.pop.agg %>% ungroup()
+single.mom.hh <- single.mom.hh %>% ungroup()   
+white.pop.pct <- white.pop.pct %>% ungroup()
+le.pop.pct <- le.pop.pct %>% ungroup()
 
 df <- rbind(pop.U17,pop.65,pop,pov,households,unemp,edu,pci)
 saveRDS(df,'data/svi_cdp.RDA')
